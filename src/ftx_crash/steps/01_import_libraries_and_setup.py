@@ -15,23 +15,25 @@ FIG_DIR = str(FIGURES_DIR)
 TAB_DIR = str(TABLES_DIR)
 
 # Publication defaults used before RiskLabAI theme is applied.
-plt.rcParams.update({
-    'font.family': 'serif',
-    'font.serif': ['DejaVu Serif', 'Times New Roman'],
-    'font.size': 12,
-    'axes.titlesize': 14,
-    'axes.labelsize': 12,
-    'xtick.labelsize': 12,
-    'ytick.labelsize': 12,
-    'legend.fontsize': 12,
-    'figure.facecolor': 'white',
-    'axes.facecolor': 'white',
-    'savefig.dpi': 300,
-    'savefig.bbox': 'tight',
-})
+plt.rcParams.update(
+    {
+        "font.family": "serif",
+        "font.serif": ["DejaVu Serif", "Times New Roman"],
+        "font.size": 12,
+        "axes.titlesize": 14,
+        "axes.labelsize": 12,
+        "xtick.labelsize": 12,
+        "ytick.labelsize": 12,
+        "legend.fontsize": 12,
+        "figure.facecolor": "white",
+        "axes.facecolor": "white",
+        "savefig.dpi": 300,
+        "savefig.bbox": "tight",
+    }
+)
 
 SAVE_PLOTS = True
-PLOT_THEME = 'light'
+PLOT_THEME = "light"
 PLOT_QUALITY = 300
 PROJECT_PATH = str(PROJECT_ROOT)
 
@@ -51,7 +53,7 @@ def save_paper_table(df: pd.DataFrame, filename: str) -> None:
 def save_paper_fig(filename: str) -> None:
     """Save the active matplotlib figure to ``outputs/figures/<filename>.png``."""
     path = os.path.join(FIG_DIR, f"{filename}.png")
-    plt.savefig(path, dpi=PLOT_QUALITY, bbox_inches='tight', facecolor='white')
+    plt.savefig(path, dpi=PLOT_QUALITY, bbox_inches="tight", facecolor="white")
     print(f"Saved figure: {path}")
 
 
@@ -63,8 +65,8 @@ pub_plots.setup_publication_style(
     save_dir=FIG_DIR,
 )
 
-warnings.filterwarnings('ignore')
-pd.set_option('display.max_columns', None)
-pd.set_option('display.width', None)
+warnings.filterwarnings("ignore")
+pd.set_option("display.max_columns", None)
+pd.set_option("display.width", None)
 
 print("Libraries loaded and Output Directories setup successfully.")

@@ -1,6 +1,7 @@
 """Notebook section: marcos s enhancement implementation."""
 
-# RiskLabAI is imported in step 01; this step pulls in modules used by enhancements 15-19.
+# This step pulls in the modules used by enhancements 15-19. The names land in the
+# shared execution namespace, so later step files use them without importing again.
 import RiskLabAI.data.differentiation.differentiation as diff
 import RiskLabAI.data.synthetic_data as synth
 import statsmodels.api as sm

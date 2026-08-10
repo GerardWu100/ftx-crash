@@ -1,0 +1,1484 @@
+<!DOCTYPE html>
+<html lang="en-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ftx-crash - code explanation</title>
+<script>
+  window.MathJax = { tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$$'],['\\[','\\]']] } };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+<script type="module">
+  // the map diagram at the top of the page; theme follows the page palette
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  const isLight = document.documentElement.getAttribute("data-theme") === "light";
+  mermaid.initialize({ startOnLoad: true, theme: isLight ? "neutral" : "dark",
+                       flowchart: { curve: "basis", useMaxWidth: true } });
+</script>
+<style>
+  :root{
+    /* dark is the default palette; a light override follows below */
+    --paper:#12161b; --bg:#12161b; --panel:#1b2027; --card:#1a1f26; --surface:#1a1f26; --raise:#1e242c;
+    --ink:#e9eef4; --soft:#b3bec9; --muted:#b3bec9; --faint:#828d99;
+    --line:#2c343e; --line2:#232a33;
+    --green:#6fc796; --greenbg:#14241c; --greenline:#2f4d3a;
+    --amber:#e0b365; --amberbg:#262010; --amberline:#4d3f20;
+    --blue:#87b8ee; --bluebg:#141e2b; --blueline:#2d425c;
+    --red:#e89296; --redbg:#26161a; --redline:#4f2f35;
+    --slate:#a7b1be; --slatebg:#1c2027; --slateline:#353c46;
+    --accent:#4fb9c2; --accent-ink:#6fd0d8; --accent-bg:#10262a;
+    --def:#87b8ee; --def-bg:#141e2b; --def-bd:#2d425c;
+    --why:#6fc796; --why-bg:#14241c; --why-bd:#2f4d3a;
+    --warn:#e0b365; --warn-bg:#262010; --warn-bd:#4d3f20;
+    --flag:#e89296; --flag-bg:#26161a; --flag-bd:#4f2f35;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+  }
+  :root[data-theme="light"]{
+    --paper:#faf8f4; --bg:#faf8f4; --panel:#f1ede6; --card:#ffffff; --surface:#ffffff; --raise:#fbfaf7;
+    --ink:#1b1b1b; --soft:#4a453e; --muted:#4a453e; --faint:#777067;
+    --line:#d6d0c6; --line2:#e7e2da;
+    --green:#2f6b4c; --greenbg:#e7f1ea; --greenline:#bcdac9;
+    --amber:#8f6413; --amberbg:#f6efdd; --amberline:#e3d3a8;
+    --blue:#2c5f95; --bluebg:#e7eef7; --blueline:#c3d6ea;
+    --red:#943232; --redbg:#f6eaea; --redline:#e2c4c4;
+    --slate:#525a66; --slatebg:#eceef1; --slateline:#cdd2d9;
+    --accent:#0e7c86; --accent-ink:#0b5f67; --accent-bg:#e7f4f4;
+    --def:#2c5f95; --def-bg:#e7eef7; --def-bd:#c3d6ea;
+    --why:#2f6b4c; --why-bg:#e7f1ea; --why-bd:#bcdac9;
+    --warn:#8f6413; --warn-bg:#f6efdd; --warn-bd:#e3d3a8;
+    --flag:#943232; --flag-bg:#f6eaea; --flag-bd:#e2c4c4;
+  }
+
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth;font-size:16px}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    font-size:18px;line-height:1.58;-webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility}
+  .wrap{padding:2.2em clamp(1em,4vw,3.2em) 5em}
+
+  h1{font-size:clamp(2.1rem,5vw,2.7rem);line-height:1.12;letter-spacing:-.02em;font-weight:800;
+    text-wrap:balance;margin:.2em 0 .2em}
+  h2{font-size:1.5rem;font-weight:750;letter-spacing:-.01em;text-wrap:balance;
+    margin:2.4em 0 .5em;padding-top:.7em;border-top:2px solid var(--line)}
+  h3{font-size:1.26rem;font-weight:700;margin:1.7em 0 .4em;color:var(--ink)}
+  h3 code{font-size:.92em}
+  h4{font-size:1rem;margin:1.3em 0 .3em;text-transform:uppercase;letter-spacing:.05em;color:var(--faint)}
+  p{margin:.7em 0}
+  ul,ol{margin:.55em 0;padding-left:1.3em}
+  li{margin:.3em 0}
+  strong,b{color:var(--ink)}
+  a{color:var(--accent-ink);text-underline-offset:2px}
+  a:hover{color:var(--accent)}
+  hr{border:none;border-top:1px solid var(--line);margin:2.5em 0}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  code{font-family:var(--mono);font-size:.9em;background:var(--panel);color:var(--ink);
+    padding:.1em .4em;border-radius:4px}
+  pre{background:var(--raise);border:1px solid var(--line);border-radius:10px;padding:1em 1.15em;
+    overflow-x:auto;font-size:.94rem;line-height:1.62;margin:1.1em 0;color:var(--ink);
+    font-family:var(--mono)}
+  pre code{background:none;padding:0;font-size:1em}
+  pre .c{color:var(--faint);font-style:italic}
+
+  .lede{font-size:1.12rem;line-height:1.48;color:var(--soft)}
+  .eyebrow{font-family:var(--mono);font-size:.78rem;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--accent-ink);margin:0 0 1.1em;display:flex;gap:.6em;align-items:center;flex-wrap:wrap}
+  .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+  .sec-no{font-family:var(--mono);font-size:.85rem;color:var(--accent-ink);
+    letter-spacing:.1em;display:block;margin-bottom:.15em}
+  .tag{display:inline-block;font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;
+    background:var(--greenbg);color:var(--green);border:1px solid var(--greenline);
+    padding:.25em .75em;border-radius:20px;margin-bottom:1em}
+  .big{font-size:1.42rem;font-weight:700;color:var(--green)}
+  .pill{font-variant-numeric:tabular-nums;font-weight:600}
+  .fnote{font-size:.95rem;color:var(--soft)}
+  .reads{margin:.55em 0}
+  .reads b{color:var(--soft)}
+  .foot{margin-top:3em;padding-top:1.2em;border-top:1px solid var(--line);
+    color:var(--soft);font-size:.95rem}
+
+  .box{border:1px solid var(--line);border-left-width:4px;border-radius:10px;
+    padding:1em 1.2em;margin:1.3em 0;background:var(--card)}
+  .box>:first-child{margin-top:0}.box>:last-child{margin-bottom:0}
+  .box p:first-child{margin-top:0}.box p:last-child{margin-bottom:0}
+  .box .k{font-weight:700;font-size:.82rem;text-transform:uppercase;letter-spacing:.08em;
+    display:block;margin-bottom:.45em}
+  .def{border-left-color:var(--def);background:var(--def-bg)}.def .k{color:var(--def)}
+  .gist{border-left-color:var(--accent);background:var(--accent-bg)}.gist .k{color:var(--accent-ink)}
+  .why{border-left-color:var(--why);background:var(--why-bg)}.why .k{color:var(--why)}
+  .warn{border-left-color:var(--warn);background:var(--warn-bg)}.warn .k{color:var(--warn)}
+  .flag{border-left-color:var(--flag);background:var(--flag-bg)}.flag .k{color:var(--flag)}
+  .data{border-left-color:var(--slate);background:var(--slatebg)}.data .k{color:var(--slate)}
+  .io{display:grid;grid-template-columns:1fr 1fr;gap:.9em}
+  .io.stack{grid-template-columns:1fr}
+  @media (max-width:820px){.io{grid-template-columns:1fr}}
+  .io .lab{font-family:var(--mono);font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--faint);font-weight:700}
+  .io pre{margin:.25em 0 0;font-size:.8rem;line-height:1.5}
+  .data>p{font-size:.95rem}
+
+  .toc{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:1.1em 1.4em;margin:1.8em 0}
+  .toc .rk{font-family:var(--mono);font-size:.76rem;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--faint);margin-bottom:.5em}
+  .toc ol{margin:.35em 0 0;padding-left:1.4em}
+  .toc a{text-decoration:none;color:var(--ink)}
+  .toc a:hover{color:var(--accent-ink)}
+
+  .scroll{overflow-x:auto;margin:1.2em 0}
+  table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:1rem;background:var(--card);
+    font-variant-numeric:tabular-nums}
+  .scroll table{margin:0}
+  th,td{border:1px solid var(--line);padding:.55em .75em;text-align:left;vertical-align:top}
+  th,thead th{background:var(--panel);color:var(--ink);font-weight:700}
+  td.n,th.n{text-align:right}
+  .pass{color:var(--green);font-weight:700}
+  .failw{color:var(--red);font-weight:700}
+
+  .chip{display:inline-block;font-size:.74rem;font-weight:700;text-transform:uppercase;
+    letter-spacing:.06em;padding:.15em .55em;border-radius:4px;white-space:nowrap;border:1px solid}
+  .c-veto{background:var(--redbg);color:var(--red);border-color:var(--redline)}
+  .c-drop{background:var(--amberbg);color:var(--amber);border-color:var(--amberline)}
+  .c-never{background:var(--slatebg);color:var(--slate);border-color:var(--slateline)}
+  .c-bug{background:var(--bluebg);color:var(--blue);border-color:var(--blueline)}
+  .legend{display:flex;flex-wrap:wrap;gap:.5em 1.1em;margin:1em 0 0;font-size:.92rem;color:var(--soft)}
+  .legend span.chip{margin-right:.4em}
+
+  figure{margin:1.6em 0;text-align:center}
+  figure img{max-width:100%;height:auto;border:1px solid var(--line);border-radius:8px;
+    background:#fff;padding:6px}
+  :root:not([data-theme="light"]) figure img{filter:brightness(.94) contrast(1.02)}
+  figcaption{font-size:.92rem;color:var(--soft);margin-top:.6em;
+    margin-left:auto;margin-right:auto}
+
+  .mermaid{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:1.2em;margin:1.4em 0;overflow-x:auto;text-align:center;
+    font-family:var(--sans)}
+  .mermaid svg{max-width:100%;height:auto}
+
+  mjx-container,.katex{color:inherit}
+  mjx-container[display="true"],.katex-display{overflow-x:auto;overflow-y:hidden;padding:.15em 0}
+</style>
+</head><body>
+<div class="wrap">
+
+<p class="eyebrow"><span class="dot"></span>ftx-crash &middot; structure and behaviour &middot; code walkthrough</p>
+<h1>ftx-crash: reading the code</h1>
+<p class="lede">What this project does, how the pieces fit together, and the things
+you need to know before you trust a number that comes out of it.</p>
+
+<div class="box def">
+  <span class="k">How to use this</span>
+  <p>Sections follow execution order. Every snippet is copied from the files under
+  <code>src/ftx_crash/</code> and <code>scripts/</code>. Coloured boxes flag design
+  choices, traps and honest weaknesses. Every number in a <b>Sample data</b> box
+  was printed by running this project's own code on this project's own parquet
+  files &mdash; nothing on this page is invented. Where the code could not be run,
+  the page says so instead of guessing.</p>
+</div>
+
+<div class="box why">
+  <span class="k">The process in plain English</span>
+  <p>The project compares two crypto blow-ups of 2022 &mdash; the Terra/LUNA
+  collapse in May and the FTX exchange failure in November &mdash; by measuring
+  how far the futures price drifted away from the spot price during each one.
+  It loads minute-by-minute Bitcoin prices and futures prices, works out an
+  annualised gap ("basis") for every minute, subtracts each crisis's own calm-period
+  average to get an "abnormal" gap, and then runs statistical tests to ask whether
+  the FTX dislocation was bigger, more volatile and longer-lasting than the LUNA
+  one. It answers yes on all three counts, and then adds five further robustness
+  layers from the RiskLabAI library. Section 10 explains why that headline answer
+  should not be believed as stated.</p>
+</div>
+
+<h2 id="map"><span class="sec-no">00</span>Map</h2>
+
+<div class="mermaid">
+flowchart LR
+  raw[("data/processed/*.parquet")] --> load["03_load_data"]
+  load --> panel["06_front_month_basis"]
+  calc["05: calculate_basis()"] --> panel
+  win["04_event_windows"] --> ab["07_abnormal_basis"]
+  panel --> ab
+  ab --> met["08_crisis_impact_metrics"]
+  met --> tests["09-12: tests, summary"]
+  met --> ml["13_crisis_classifier"]
+  met --> enh["15-19: RiskLabAI enhancements"]
+  tests --> out[("outputs/tables + figures")]
+  ml --> out
+  enh --> out
+</div>
+<p class="fnote">Cylinders are stored files on disk; boxes are step scripts or
+functions; arrows show which way data moves. The numbers are the step file
+prefixes under <code>src/ftx_crash/steps/</code>.</p>
+
+<div class="toc">
+  <div class="rk">Contents</div>
+  <ol>
+    <li><a href="#sec1">What you run &mdash; <code>cli.py</code>, <code>run_pipeline.py</code>, <code>demo.ipynb</code></a></li>
+    <li><a href="#sec2">The execution model &mdash; <code>pipeline.py</code> and <code>config.py</code></a></li>
+    <li><a href="#sec3">The data layer &mdash; <code>convert_raw_to_parquet.py</code> and <code>data/processed/</code></a></li>
+    <li><a href="#sec4">Setup, overview, load, windows &mdash; steps 01 to 04</a></li>
+    <li><a href="#sec5">The basis and the panel &mdash; steps 05 and 06</a></li>
+    <li><a href="#sec6">Abnormal basis and persistence &mdash; steps 07 and 08</a></li>
+    <li><a href="#sec7">Tests, charts and the summary table &mdash; steps 09 to 12</a></li>
+    <li><a href="#sec8">The crisis classifier &mdash; step 13</a></li>
+    <li><a href="#sec9">The five RiskLabAI enhancements &mdash; steps 14 to 19</a></li>
+    <li><a href="#sec10">What the numbers actually mean</a></li>
+    <li><a href="#sec11">Settings and what changing them does</a></li>
+    <li><a href="#fixes">Fixes applied</a></li>
+    <li><a href="#callgraph">Call graph</a></li>
+    <li><a href="#edge">Edge cases</a></li>
+    <li><a href="#idiom">Idiom index</a></li>
+    <li><a href="#ask">If they point at a line</a></li>
+    <li><a href="#verify">Verification</a></li>
+    <li><a href="#limits">Limitations, stated honestly</a></li>
+  </ol>
+</div>
+
+<h2 id="sec1"><span class="sec-no">01</span>What you run &mdash; <code>cli.py</code>, <code>run_pipeline.py</code>, <code>demo.ipynb</code></h2>
+
+<p>There is exactly one thing this project does when you run it: execute nineteen
+Python files in order, in one shared namespace, and drop charts and CSV tables into
+<code>outputs/</code>. Three doors lead to the same room.</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Entry point</th><th>Command</th><th>What it is</th></tr></thead>
+<tbody>
+<tr><td>Console script</td><td><code>uv run ftx-crash</code></td><td>Registered in <code>pyproject.toml</code> as <code>ftx_crash.cli:main</code>. The intended way in.</td></tr>
+<tr><td>Script wrapper</td><td><code>uv run python scripts/run_pipeline.py</code></td><td>Thirteen lines that import <code>ftx_crash.cli.main</code> and call it.</td></tr>
+<tr><td>Notebook</td><td><code>notebooks/demo.ipynb</code></td><td>A thin notebook that calls the same backend. No analysis logic lives in it.</td></tr>
+<tr><td>Data rebuild</td><td><code>uv run python scripts/convert_raw_to_parquet.py</code></td><td>One-off. Rebuilds <code>data/processed/</code> from raw text and CSV files restored under <code>data/raw/</code>.</td></tr>
+</tbody>
+</table>
+</div>
+
+<pre>def main() -&gt; None:
+    <span class="c">"""Run the project pipeline from the command line."""</span>
+    parser = argparse.ArgumentParser(description="Run the notebook-derived pipeline.")
+    parser.add_argument(
+        "--smoke",
+        action="store_true",
+        help="Run with smaller verification settings when supported.",
+    )
+    parser.add_argument(
+        "--print-keys",
+        action="store_true",
+        help="Print the final context keys after execution.",
+    )
+    args = parser.parse_args()
+
+    overrides = dict(SMOKE_OVERRIDES) if args.smoke else {}
+    context = run_pipeline(context_overrides=overrides)
+    if args.print_keys:
+        pprint(sorted(context.keys()))</pre>
+
+<div class="box gist"><span class="k">In plain words</span>
+<p><code>main</code> reads two optional switches, hands any overrides to the pipeline,
+and optionally prints the names of every variable the run left behind.</p></div>
+
+<div class="box def"><span class="k">What it does</span>
+<p><b>Input:</b> command-line arguments. <b>Output:</b> nothing returned; side effects are
+PNG charts in <code>outputs/figures/</code> and CSV tables in <code>outputs/tables/</code>.
+<b>Role:</b> the only supported user interface.</p></div>
+
+<div class="box warn"><span class="k">Trap</span>
+<p><code>--smoke</code> currently does nothing. <code>SMOKE_OVERRIDES</code> is an empty
+dictionary, so passing the flag produces exactly the same full-length run. The one
+override any step reads is <code>max_uniqueness_events</code> in step 17, and nothing
+sets it. If you want a fast run, you have to put that key into
+<code>SMOKE_OVERRIDES</code> yourself.</p></div>
+
+<h2 id="sec2"><span class="sec-no">02</span>The execution model &mdash; <code>pipeline.py</code> and <code>config.py</code></h2>
+
+<p>This is the single most important idea in the project. The code began life as one
+long Jupyter notebook. Rather than rewrite it into functions and modules, the author
+split the notebook into nineteen files and kept notebook semantics: one shared
+dictionary of global variables that every file reads from and writes to.</p>
+
+<pre>def run_pipeline(context_overrides: dict[str, Any] | None = None) -&gt; dict[str, Any]:
+    <span class="c">"""Run each step script in sorted filename order with a shared global context.</span>
+<span class="c"></span>
+<span class="c">    Returns the final execution namespace (all globals produced by the steps).</span>
+<span class="c">    """</span>
+    config = ProjectConfig()
+    context = build_execution_context(
+        config=config, context_overrides=context_overrides
+    )
+
+    for step_path in sorted(config.steps_dir.glob("*.py")):
+        context["__file__"] = str(step_path)
+        source = step_path.read_text()
+        exec(compile(source, str(step_path), "exec"), context)
+
+    return context</pre>
+
+<div class="box gist"><span class="k">In plain words</span>
+<p>It finds every <code>.py</code> file in the <code>steps</code> folder, sorts them by
+name, and runs each one inside the same bag of variables, so anything file 03 creates
+is still there when file 17 runs.</p></div>
+
+<div class="box def"><span class="k">What it does</span>
+<p><b>Input:</b> an optional dictionary of overrides. <b>Output:</b> the final namespace,
+a dictionary holding every variable the nineteen files created (roughly 200 keys).
+<b>Role:</b> the engine. Nothing else in the project loops over the steps.</p></div>
+
+<div class="box data"><span class="k">Sample data</span>
+<div class="io">
+<div><span class="lab">in &mdash; sorted(steps_dir.glob("*.py"))</span>
+<pre>01_import_libraries_and_setup.py
+02_market_overview.py
+03_load_data.py
+...
+19_enhancement_5_synthetic_data_...py</pre></div>
+<div><span class="lab">out &mdash; context after the run</span>
+<pre>context["data"].shape   -&gt; (260428, 14)
+context["luna_ab_basis"]  -&gt; 15841 values
+context["ftx_ab_basis"]   -&gt; 18518 values
+context["basis_cohens_d"] -&gt; -5.516</pre>
+<p class="fnote">Real values from a run of steps 01 to 13 on the bundled parquet files.</p></div>
+</div>
+<p>The panel <code>data</code> has 260,428 rows because it stacks 129,601 one-minute
+LUNA-window bars on top of 130,827 one-minute FTX-window bars.</p></div>
+
+<div class="box why"><span class="k">Why it is written this way</span>
+<p>The stated goal in <code>GUIDE_src.md</code> is notebook parity: keep the converted
+code close enough to the original notebook that a reader can compare them side by
+side. A shared <code>exec</code> namespace reproduces notebook behaviour exactly,
+including the parts of notebook behaviour that are bad ideas.</p></div>
+
+<div class="box warn"><span class="k">Trap</span>
+<p>Because the files share one namespace, an import in file 01 is what makes
+<code>np</code> exist in file 08. A tool that removes "unused" imports from a single
+file will happily delete an import that four other files depend on, and nothing will
+catch it until the run crashes. That is exactly what had happened to this working
+tree &mdash; see <a href="#fixes">Fixes applied</a>.</p></div>
+
+<div class="box warn"><span class="k">Trap</span>
+<p>The order is <em>sorted filename</em> order, not the order in the split map. It works
+only because every file is prefixed with a zero-padded two-digit number. Add a file
+called <code>20_extra.py</code> and it runs last, as expected; add
+<code>9_extra.py</code> and it runs after <code>19_...</code>, because <code>"9"</code>
+sorts after <code>"1"</code>.</p></div>
+
+<h3><code>build_execution_context</code> &mdash; makes the folders and seeds the namespace</h3>
+
+<pre>def build_execution_context(
+    config: ProjectConfig,
+    context_overrides: dict[str, Any] | None = None,
+) -&gt; dict[str, Any]:
+    <span class="c">"""Build the shared global namespace used when executing step scripts."""</span>
+    config.processed_data_dir.mkdir(parents=True, exist_ok=True)
+    config.figures_dir.mkdir(parents=True, exist_ok=True)
+    config.tables_dir.mkdir(parents=True, exist_ok=True)
+
+    overrides = dict(context_overrides or {})
+    smoke_test_mode = bool(overrides.get("SMOKE_TEST_MODE", False))
+
+    context: dict[str, Any] = {
+        "__name__": "__main__",
+        "PROJECT_ROOT": config.project_root,
+        ...
+        "OVERRIDES": overrides,
+        "SMOKE_TEST_MODE": smoke_test_mode,
+    }
+    context.update(overrides)
+    return context</pre>
+
+<div class="box def"><span class="k">What it does</span>
+<p><b>Input:</b> a <code>ProjectConfig</code> and optional overrides. <b>Output:</b> a
+dictionary holding six path variables plus the override bag. <b>Role:</b> gives the step
+files their only knowledge of where anything lives on disk.</p></div>
+
+<div class="box why"><span class="k">Why paths are derived, not hard-coded</span>
+<p><code>ProjectConfig.project_root</code> is
+<code>Path(__file__).resolve().parents[2]</code>. The file sits at
+<code>src/ftx_crash/config.py</code>, so two levels up is the project root. Every other
+path hangs off that. The run therefore works from any working directory, which matters
+because the notebook, the console script and the wrapper script all start from
+different places.</p></div>
+
+<div class="box flag"><span class="k">The weakness, stated honestly</span>
+<p><code>context.update(overrides)</code> writes every override key straight into the
+global namespace. An override named <code>data</code> or <code>plt</code> would silently
+shadow the panel or the plotting library. There is no allow-list and no validation.</p></div>
+
+<h2 id="sec3"><span class="sec-no">03</span>The data layer &mdash; <code>convert_raw_to_parquet.py</code> and <code>data/processed/</code></h2>
+
+<p>Five parquet files are committed into the repository. They are the only inputs the
+pipeline reads. The raw sources they came from are not in the repository.</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>File in <code>data/processed/</code></th><th>What it holds</th><th class="n">Rows</th><th>Span</th></tr></thead>
+<tbody>
+<tr><td><code>BTC_full_1min.parquet</code></td><td>Bitcoin spot, one-minute bars, naive timestamps treated as UTC</td><td class="n">395,785</td><td>2022-04-01 00:00 to 2022-12-31 23:58</td></tr>
+<tr><td><code>BITO_full_1min_adjsplitdiv.parquet</code></td><td>BITO exchange-traded fund, one-minute bars, US Eastern time</td><td class="n">29,627</td><td>2022-10-03 04:02 to 2022-12-30 19:42</td></tr>
+<tr><td><code>DA-16_..._2019-2025_binance_perpetual.parquet</code></td><td>Bitcoin perpetual futures, hourly</td><td class="n">8,761</td><td>2022-01-01 to 2023-01-01</td></tr>
+<tr><td><code>DA-16_..._2022-03_2022-06_binance_quarterly.parquet</code></td><td>June 2022 quarterly futures, hourly</td><td class="n">2,262</td><td>2022-03-22 03:00 to 2022-06-24 08:00</td></tr>
+<tr><td><code>DA-16_..._2022-06_2022-09_binance_quarterly.parquet</code></td><td>September 2022 quarterly futures, hourly</td><td class="n">2,455</td><td>2022-06-20 02:00 to 2022-09-30 08:00</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box gist"><span class="k">In plain words</span>
+<p><code>convert_raw_to_parquet.py</code> is the recipe that produced those five files:
+read the original text and CSV files, keep only the date range the study needs, write
+parquet. You never need it unless you are rebuilding the data.</p></div>
+
+<div class="box warn"><span class="k">Trap</span>
+<p>Note the BITO span. The exchange-traded fund file has 29,627 one-minute bars over
+three months, while the Bitcoin file has one bar for every minute. When step 06 lines
+them up, a single BITO print is forward-filled across every minute until the next
+print &mdash; including nights and weekends. The FTX "futures" series is therefore a
+step function, not a continuously observed price.</p></div>
+
+<div class="box warn"><span class="k">Trap</span>
+<p>The date filters live in the conversion script, not in the analysis. Bitcoin spot
+starts on <b>2022-04-01</b> and BITO starts on <b>2022-10-01</b>, but step 04 declares
+estimation windows starting <b>2022-03-01</b> and <b>2022-09-01</b>. The declared
+windows are silently truncated by the data. See
+<a href="#edge">Edge cases</a>.</p></div>
+
+<h2 id="sec4"><span class="sec-no">04</span>Setup, overview, load, windows &mdash; steps 01 to 04</h2>
+
+<h3>Step 01 &mdash; imports, plot style, and two save helpers</h3>
+
+<p>File 01 does four jobs: import the libraries every later file needs, set matplotlib
+defaults, define <code>save_table</code> and <code>save_paper_fig</code>, and apply the
+RiskLabAI publication theme.</p>
+
+<pre>def save_table(df: pd.DataFrame, filename: str, index: bool = True) -&gt; None:
+    <span class="c">"""Write a DataFrame to ``outputs/tables/&lt;filename&gt;.csv``."""</span>
+    path = os.path.join(TAB_DIR, f"{filename}.csv")
+    df.to_csv(path, index=index)
+    print(f"Saved table: {path}")
+
+
+def save_paper_fig(filename: str) -&gt; None:
+    <span class="c">"""Save the active matplotlib figure to ``outputs/figures/&lt;filename&gt;.png``."""</span>
+    path = os.path.join(FIG_DIR, f"{filename}.png")
+    plt.savefig(path, dpi=PLOT_QUALITY, bbox_inches="tight", facecolor="white")
+    print(f"Saved figure: {path}")</pre>
+
+<div class="box def"><span class="k">What it does</span>
+<p><b>Input:</b> a DataFrame plus a name, or just a name. <b>Output:</b> a file on disk.
+<b>Role:</b> every exported table and chart in the project goes through one of these two
+functions, or through a direct <code>plt.savefig</code> call in steps 02, 10 and 19.</p></div>
+
+<div class="box warn"><span class="k">Trap</span>
+<p><code>save_paper_fig</code> saves whatever figure matplotlib currently considers
+active. If a step creates a figure and then creates another before saving, the wrong
+one is written. Nothing calls <code>plt.close()</code>, so a full run keeps every figure
+in memory to the end.</p></div>
+
+<h3>Step 02 &mdash; the 2022 overview chart</h3>
+
+<p>Reads the hourly perpetual futures file, slices 2022, draws the price line with two
+shaded crisis bands, and prints summary statistics. It is the only step that uses the
+hourly perpetual file, and its crisis bands are slightly wider than the event-study
+windows defined in step 04.</p>
+
+<div class="box data"><span class="k">Sample data</span>
+<div class="io">
+<div><span class="lab">in &mdash; hourly perpetual close, 2022</span>
+<pre>datetime              close
+2022-01-01 00:00   46650.01
+2022-01-01 01:00   46766.78
+2022-01-01 02:00   46796.14</pre></div>
+<div><span class="lab">out &mdash; printed summary</span>
+<pre>LUNA Crisis (May 7-15, 2022):
+  Start price: $35,976.20
+  Low price:   $27,079.00
+  Price decline: -24.73%   &lt;- (27079.00-35976.20)/35976.20
+
+FTX Crisis (Nov 6-14, 2022):
+  Start price: $21,314.70
+  Low price:   $15,701.80
+  Price decline: -26.33%</pre></div>
+</div>
+<p>Whole-year figure printed by the same step: Bitcoin went from \$46,650.01 on
+1 January to \$16,527.00 on 31 December, a fall of 64.57 per cent.</p></div>
+
+<div class="box warn"><span class="k">Trap</span>
+<p>Step 02 defines <code>luna_crisis_start</code> as the <em>string</em>
+<code>"2022-05-07"</code>. Step 04 then rebinds the same name to a timezone-aware
+<code>pd.Timestamp("2022-05-09", tz="UTC")</code>. Two different windows, one variable
+name, and the second silently wins for everything that runs later. The step-02 chart is
+already drawn by then, so nothing breaks &mdash; but the name means different things at
+different points in the run.</p></div>
+
+<h3>Step 03 &mdash; loading and timezone alignment</h3>
+
+<pre>btc_1min = pd.read_parquet(btc_path).set_index("DateTime")
+btc_1min.index = btc_1min.index.tz_localize("UTC")
+
+luna_spot_intraday = btc_1min[
+    (btc_1min.index &gt;= "2022-04-01") &amp; (btc_1min.index &lt;= "2022-06-30")
+].copy()
+...
+bito_1min.index = bito_1min.index.tz_localize("US/Eastern").tz_convert("UTC")</pre>
+
+<div class="box gist"><span class="k">In plain words</span>
+<p>Bitcoin timestamps are assumed to already be UTC; the exchange-traded fund
+timestamps are assumed to be US Eastern wall-clock time and get converted to UTC so the
+two can be lined up.</p></div>
+
+<div class="box def"><span class="k">What it does</span>
+<p><b>Input:</b> two parquet files. <b>Output:</b> three timezone-aware frames:
+<code>luna_spot_intraday</code> (129,601 rows), <code>ftx_spot_intraday</code>
+(130,827 rows), <code>ftx_futures_proxy</code> (29,625 rows).
+<b>Role:</b> everything downstream slices these.</p></div>
+
+<div class="box warn"><span class="k">Trap</span>
+<p><code>tz_localize("US/Eastern")</code> raises an error on ambiguous timestamps, and
+the clocks went back on 6 November 2022 &mdash; the first day of the FTX crisis window.
+It happens to work here because the file has no bars in the repeated 01:00-02:00
+Eastern hour, but a fuller BITO file would stop the pipeline dead. Passing
+<code>ambiguous="infer"</code> would be the fix if that ever happens.</p></div>
+
+<h3>Step 04 &mdash; the event windows</h3>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Event</th><th>Estimation window (declared)</th><th>Crisis window</th><th>Post-crisis window</th><th>Trigger</th></tr></thead>
+<tbody>
+<tr><td>Terra/LUNA</td><td>2022-03-01 to 2022-05-08</td><td>2022-05-09 to 2022-05-20</td><td>2022-05-21 to 2022-06-30</td><td>UST loses its peg, 9 May</td></tr>
+<tr><td>FTX</td><td>2022-09-01 to 2022-11-05</td><td>2022-11-06 to 2022-11-19</td><td>2022-11-20 to 2022-12-31</td><td>Binance announces FTT sale, 6 Nov</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box why"><span class="k">Why the windows are split this way</span>
+<p>This is the standard shape of an event study. The estimation window is a calm period
+used to work out what "normal" looks like; the crisis window is the period under test;
+the post-crisis window is used to measure how long it took to return to normal. Because
+the estimation window ends the day before the crisis window starts, the benchmark
+never uses information from the crisis itself &mdash; there is no look-ahead bias in
+this part of the design.</p></div>
+
+<div class="box data"><span class="k">Sample data</span>
+<div class="io stack">
+<div><span class="lab">out &mdash; declared windows versus what the data actually covers</span>
+<pre>LUNA estimation, declared:  2022-03-01  ->  2022-05-08
+LUNA estimation, realised:  2022-04-01  ->  2022-05-08   &lt;- one month missing
+FTX  estimation, declared:  2022-09-01  ->  2022-11-05
+FTX  estimation, realised:  2022-10-01  ->  2022-11-05   &lt;- one month missing</pre></div>
+</div>
+<p>The "realised" line is the first and last timestamp actually returned by
+<code>data.loc[estimation_start:estimation_end]</code>. The exported appendix table
+<code>tab_appendix_event_timeline.csv</code> reports the declared dates, so the table
+overstates the estimation period by roughly a month for both events.</p></div>
+
+<h2 id="sec5"><span class="sec-no">05</span>The basis and the panel &mdash; steps 05 and 06</h2>
+
+<h3><code>calculate_basis</code> &mdash; annualised gap between futures and spot</h3>
+
+<pre>def calculate_basis(futures_price, spot_price, days_to_maturity):
+    <span class="c">"""Annualized futures basis in percent: ((F - S) / S) * (365 / T) * 100.</span>
+<span class="c"></span>
+<span class="c">    Parameters</span>
+<span class="c">    ----------</span>
+<span class="c">    futures_price, spot_price</span>
+<span class="c">        Price series (aligned index).</span>
+<span class="c">    days_to_maturity</span>
+<span class="c">        Calendar days until contract expiry; floored at 1 to avoid division by zero.</span>
+<span class="c">    """</span>
+    days_to_expiry = np.maximum(days_to_maturity, 1)
+    return ((futures_price - spot_price) / spot_price) * (365 / days_to_expiry) * 100</pre>
+
+<div class="box gist"><span class="k">In plain words</span>
+<p>Work out how much dearer the futures contract is than the spot price, as a
+percentage, then scale it up to what that would be worth over a full year.</p></div>
+
+<div class="box def"><span class="k">What it does</span>
+<p><b>Input:</b> two aligned price series and a count of calendar days to expiry.
+<b>Output:</b> a series of annualised percentages. <b>Role:</b> the single measurement
+the whole study is built on. Everything after this point is arithmetic on its output.</p></div>
+
+<div class="box def"><span class="k">The formula</span>
+<p>$$b_t \;=\; \frac{F_t - S_t}{S_t}\;\times\;\frac{365}{\max(T_t,\,1)}\;\times\;100$$</p>
+<p class="fnote">$b_t$ is the annualised basis in per cent at minute $t$. $F_t$ is the
+futures price, $S_t$ the spot price. $T_t$ is the number of whole calendar days from
+minute $t$ to the contract's expiry date; the $\max(\cdot,1)$ stops the division
+blowing up on and after expiry day. The factor $365$ turns a gap earned over $T_t$ days
+into a yearly rate, and $100$ turns a fraction into per cent.</p></div>
+
+<div class="box data"><span class="k">Sample data</span>
+<div class="io">
+<div><span class="lab">in &mdash; LUNA leg, 2022-05-10 00:00 UTC</span>
+<pre>spot   S = 30191.82
+futures F = 30824.00
+expiry     2022-06-24
+days    T = 45</pre></div>
+<div><span class="lab">out &mdash; luna_df["basis_2022-06"]</span>
+<pre>16.983680   &lt;- 2.09% gap over 45 days,
+               annualised to about 17%</pre>
+<p class="fnote">(30824.00 &minus; 30191.82) / 30191.82 = 0.020939; 0.020939 &times; 365/45
+&times; 100 = 16.9837.</p></div>
+</div>
+</div>
+
+<div class="box data"><span class="k">Sample data</span>
+<div class="io">
+<div><span class="lab">in &mdash; FTX leg, 2022-11-09 15:00 UTC</span>
+<pre>spot    S = 17662.90   (Bitcoin, US dollars)
+"futures" F = 2.66     (BITO share price)
+expiry      2022-12-30
+days     T = 50</pre></div>
+<div><span class="lab">out &mdash; ftx_df["ftx_front_basis"]</span>
+<pre>15:00  -729.890063
+15:01  -729.890115   &lt;- barely moves
+15:02  -729.890108</pre>
+<p class="fnote">(2.66 &minus; 17662.90) / 17662.90 = &minus;0.999849; &times; 365/50
+&times; 100 = &minus;729.890.</p></div>
+</div>
+<p>This is the finding that matters most on this page. A BITO share costs about
+\$2.66; one Bitcoin costs about \$17,663. Their ratio is almost exactly zero, so
+$(F-S)/S$ is almost exactly $-1$ at every minute, and the "basis" is really just
+$-100 \times 365 / T$ &mdash; a function of the calendar, not of the market. See
+<a href="#sec10">section 10</a>.</p></div>
+
+<h3>Step 06 &mdash; building the panel <code>data</code></h3>
+
+<pre>luna_df = pd.DataFrame(index=luna_spot_intraday.index)
+luna_df["perp_close"] = luna_spot_intraday["Close"]
+luna_df["fut_jun"] = f_jun["close"].reindex(luna_df.index, method="ffill")
+luna_df["fut_sep"] = f_sep["close"].reindex(luna_df.index, method="ffill")
+
+days_jun = (maturity_dates["2022-06"] - luna_df.index).days
+days_sep = (maturity_dates["2022-09"] - luna_df.index).days
+
+luna_df["basis_2022-06"] = calculate_basis(luna_df["fut_jun"], luna_df["perp_close"], days_jun)
+luna_df["basis_2022-09"] = calculate_basis(luna_df["fut_sep"], luna_df["perp_close"], days_sep)
+luna_df["luna_slope"] = luna_df["basis_2022-09"] - luna_df["basis_2022-06"]
+luna_df["luna_front_basis"] = luna_df["basis_2022-06"]
+...
+data = pd.concat([luna_df, ftx_df])</pre>
+
+<div class="box gist"><span class="k">In plain words</span>
+<p>Build one table for the LUNA period and one for the FTX period, each on a
+one-minute clock, then stack them on top of each other into a single table called
+<code>data</code> that every later step slices.</p></div>
+
+<div class="box def"><span class="k">What it does</span>
+<p><b>Input:</b> the three frames from step 03 plus two hourly quarterly-futures files.
+<b>Output:</b> <code>data</code>, 260,428 rows by 14 columns, one-minute UTC index.
+<b>Role:</b> the one object the rest of the project reads.</p></div>
+
+<div class="box def"><span class="k">The formula</span>
+<p>$$\text{slope}_t \;=\; b^{\,\text{Sep}}_t - b^{\,\text{Jun}}_t$$</p>
+<p class="fnote">$b^{\,\text{Jun}}_t$ is the annualised basis of the June contract at
+minute $t$, $b^{\,\text{Sep}}_t$ the same for the September contract. The difference is
+the term-structure slope: how much more (or less) the market pays for holding the
+exposure three months longer.</p></div>
+
+<div class="box data"><span class="k">Sample data</span>
+<div class="io stack">
+<div><span class="lab">out &mdash; data, 2022-05-10 (mid LUNA crisis)</span>
+<pre>DateTime                   perp_close  fut_jun  fut_sep  basis_2022-06  basis_2022-09  luna_slope
+2022-05-10 00:00:00+00:00    30191.82  30824.0      NaN      16.983680            NaN         NaN
+2022-05-10 00:01:00+00:00    30171.38  30824.0      NaN      17.943427            NaN         NaN
+2022-05-10 00:02:00+00:00    30404.28  30824.0      NaN      11.451573            NaN         NaN</pre></div>
+</div>
+<p>Every <code>luna_slope</code> value in the crisis window is missing. The September
+contract's data file begins on 2022-06-20, six weeks after the LUNA crisis ended, so
+the forward fill has nothing to carry back. Counted over the whole run:
+<code>luna_ab_slope</code> has <b>0</b> values and <code>ftx_ab_slope</code> has
+<b>0</b> values. The term-structure dimension of the study is empty.</p></div>
+
+<div class="box warn"><span class="k">Trap</span>
+<p><code>ffill</code> in <code>reindex</code> only fills forward. Anything before the
+first futures print stays missing, which is correct, but it also means a stale hourly
+price is stamped onto sixty consecutive one-minute rows. The basis series looks
+smoother and more autocorrelated than the market actually was.</p></div>
+
+<div class="box flag"><span class="k">The weakness, stated honestly</span>
+<p>The column is called <code>perp_close</code> but it holds Bitcoin <em>spot</em>
+prices from <code>BTC_full_1min.parquet</code>. The perpetual futures file is only used
+by step 02's chart. A reader following the variable names would draw the wrong
+conclusion about what is being compared.</p></div>
+
+<div class="box data"><span class="k">Sample data</span>
+<div class="io stack">
+<div><span class="lab">out &mdash; luna_front_basis by month, and the expiry effect</span>
+<pre>month     mean        min          max       count
+2022-04   2.818     -12.733       13.478     43200
+2022-05   2.724     -63.988       86.626     44640
+2022-06  -7.748   -1549.604     1861.908     41761   &lt;- June contract expires 24 June
+
+rows on or after expiry: 10080   std of basis: 745.96
+rows before expiry:     119521   std of basis:  40.23</pre></div>
+</div>
+<p>After 24 June the days-to-expiry clamp holds $T$ at 1, so every one-cent wobble is
+multiplied by 365. Those 10,080 rows (seven days of minutes) are what push the
+project's reported LUNA standard deviation to 211.72 per cent.</p></div>
+
+<h2 id="sec6"><span class="sec-no">06</span>Abnormal basis and persistence &mdash; steps 07 and 08</h2>
+
+<h3>Step 07 &mdash; subtract the calm-period average</h3>
+
+<pre>luna_est_data = data.loc[luna_estimation_start:luna_estimation_end]
+luna_normal_front_basis = luna_est_data["luna_front_basis"].mean()
+...
+data["luna_abnormal_basis"] = data["luna_front_basis"] - luna_normal_front_basis
+data["ftx_abnormal_basis"] = data["ftx_front_basis"] - ftx_normal_front_basis</pre>
+
+<div class="box def"><span class="k">The formula</span>
+<p>$$\bar b^{\,\text{est}} \;=\; \frac{1}{N_{\text{est}}}\sum_{t \in \text{estimation}} b_t
+\qquad\qquad
+a_t \;=\; b_t - \bar b^{\,\text{est}}$$</p>
+<p class="fnote">$b_t$ is the annualised basis at minute $t$. $\bar b^{\,\text{est}}$ is
+its average over the estimation window only, with $N_{\text{est}}$ the number of
+minutes in that window. $a_t$ is the abnormal basis: how far this minute sits from what
+was normal before the crisis began. This is the event-study residual, using a
+constant-mean benchmark rather than a market model.</p></div>
+
+<div class="box data"><span class="k">Sample data</span>
+<div class="io">
+<div><span class="lab">in &mdash; estimation-window averages</span>
+<pre>LUNA normal basis:    2.7057%
+FTX  normal basis: -524.6240%</pre></div>
+<div><span class="lab">out &mdash; first LUNA crisis minutes</span>
+<pre>2022-05-09 00:00   0.293916
+2022-05-09 00:01   0.894318
+2022-05-09 00:02   2.483434   &lt;- 5.19% basis minus 2.71% normal</pre></div>
+</div>
+</div>
+
+<div class="box why"><span class="k">Why this is free of look-ahead bias</span>
+<p>The benchmark is computed on <code>luna_est_data</code>, which ends on 8 May, and
+applied to a crisis starting 9 May. No crisis observation contributes to the number it
+is measured against. This is the one place in the project where the timing discipline is
+clearly right.</p></div>
+
+<div class="box flag"><span class="k">The weakness, stated honestly</span>
+<p>A negative "normal basis" of &minus;524.62 per cent is not a market fact; it is the
+average of the BITO-versus-Bitcoin artefact described in
+<a href="#sec5">section 05</a>. Subtracting it removes the constant part of the artefact
+but leaves the part that varies with days-to-expiry.</p></div>
+
+<h3><code>calculate_half_life</code> &mdash; how fast the dislocation faded</h3>
+
+<pre><span class="c"># The panel built in step 06 is 1-minute data, so an AR(1) fitted on consecutive</span>
+<span class="c"># rows gives a half-life counted in bars (minutes). Downstream steps print the</span>
+<span class="c"># half-life in hours and divide by 24 for days, so convert here.</span>
+BARS_PER_HOUR = 60
+
+
+def calculate_half_life(series, bars_per_hour: float = BARS_PER_HOUR) -&gt; float:
+    clean_series = series.dropna()
+    if len(clean_series) &lt; 10:
+        return np.nan
+
+    y = clean_series.values[1:]
+    y_lag = clean_series.values[:-1]
+
+    <span class="c"># OLS estimate of rho (no intercept since abnormal basis is demeaned)</span>
+    rho = np.sum(y * y_lag) / np.sum(y_lag**2)
+
+    <span class="c"># Handle edge cases</span>
+    if rho &gt;= 1:  <span class="c"># Non-stationary (unit root or explosive)</span>
+        return np.inf
+    elif rho &lt;= 0:  <span class="c"># Negative autocorrelation (oscillatory)</span>
+        return np.inf  <span class="c"># Half-life undefined for negative rho</span>
+
+    half_life_bars = -np.log(2) / np.log(rho)
+    return half_life_bars / bars_per_hour</pre>
+
+<div class="box gist"><span class="k">In plain words</span>
+<p>Measure how strongly each minute's dislocation carries into the next minute, then
+convert that into "how long until half of it has gone".</p></div>
+
+<div class="box def"><span class="k">What it does</span>
+<p><b>Input:</b> a post-crisis abnormal-basis series on the one-minute grid.
+<b>Output:</b> one number, the half-life in hours (or infinity when the fit says the
+dislocation never decays). <b>Role:</b> the "persistence" leg of the project's
+three-dimensional comparison.</p></div>
+
+<div class="box def"><span class="k">The formula</span>
+<p>The model fitted is a first-order autoregression through the origin:</p>
+<p>$$a_t \;=\; \rho\, a_{t-1} + \varepsilon_t$$</p>
+<p>The least-squares estimate with no intercept is the ratio of the cross-product to
+the sum of squared lags:</p>
+<p>$$\hat\rho \;=\; \frac{\sum_{t=2}^{N} a_t\,a_{t-1}}{\sum_{t=2}^{N} a_{t-1}^{2}}$$</p>
+<p>Repeated $k$ times, the expected level is $\rho^{k} a_t$. Setting that to half and
+taking logarithms gives the half-life in bars, which the code divides by 60 to get
+hours:</p>
+<p>$$H \;=\; \frac{-\ln 2}{\ln \hat\rho}\;\Big/\;60$$</p>
+<p class="fnote">$a_t$ is the abnormal basis at minute $t$; $\varepsilon_t$ is the
+unexplained part of that minute; $\hat\rho$ is the estimated carry-over from one minute
+to the next, between 0 and 1 for a decaying series; $N$ is the number of minutes in
+the post-crisis window; $H$ is the half-life in hours; the 60 is
+<code>BARS_PER_HOUR</code>, the number of one-minute bars in an hour.</p></div>
+
+<div class="box data"><span class="k">Sample data</span>
+<div class="io">
+<div><span class="lab">in &mdash; post-crisis abnormal basis</span>
+<pre>LUNA: 2022-05-21 -&gt; 2022-06-30, 1-min
+FTX:  2022-11-20 -&gt; 2022-12-31, 1-min</pre></div>
+<div><span class="lab">out &mdash; half-life</span>
+<pre>LUNA:   5.8 hours  (0.2 days)
+FTX:    inf        &lt;- rho fell outside (0, 1)</pre></div>
+</div>
+<p>The FTX result is infinity, not a large number. That flows through into every
+"Ratio (FTX/LUNA)" cell in steps 10 and 12, which print <code>infx</code>.</p></div>
+
+<div class="box why"><span class="k">Why there is no intercept</span>
+<p>The series has already had its estimation-window average removed, so in principle it
+is centred on zero and an intercept would be redundant. The docstring says as much.</p></div>
+
+<div class="box flag"><span class="k">The weakness, stated honestly</span>
+<p>That reasoning only holds if the post-crisis average also happens to be zero, and
+there is no reason it should be &mdash; the series was centred using a <em>different</em>
+window. A non-zero mean biases $\hat\rho$ upward, which lengthens the half-life. Fitting
+with an intercept, as the docstring itself suggests, would be more defensible.</p></div>
+
+<div class="box warn"><span class="k">Trap</span>
+<p>Returning <code>np.inf</code> for both $\hat\rho \ge 1$ and $\hat\rho \le 0$ merges two
+completely different situations: "never decays" and "flips sign every bar". Reading
+<code>inf</code> in the output tells you nothing about which one happened.</p></div>
+
+<h3>Step 08 &mdash; cumulative and average impact</h3>
+
+<div class="box data"><span class="k">Sample data</span>
+<div class="io stack">
+<div><span class="lab">out &mdash; printed by step 08</span>
+<pre>Terra/LUNA:
+  Average abnormal basis:    -0.53%
+  Cumulative impact:      -8346.62%
+  Half-life (recovery):      5.8h (0.2d)
+
+FTX:
+  Average abnormal basis:  -257.22%
+  Cumulative impact:   -4763269.40%
+  Half-life (recovery):      infh (infd)</pre></div>
+</div>
+<p>The cumulative figure is a plain <code>.sum()</code> over every minute in the crisis
+window: 15,841 minutes for LUNA and 18,518 for FTX. Adding up 18,518 separate
+annualised yearly rates does not produce a quantity with a meaning, which is why the
+number reads as &minus;4.7 million per cent.</p></div>
+
+<h2 id="sec7"><span class="sec-no">07</span>Tests, charts and the summary table &mdash; steps 09 to 12</h2>
+
+<p>Step 09 runs the formal comparisons, step 10 draws a three-panel comparison chart,
+step 11 adds confidence intervals and a significance chart, step 12 prints the final
+summary table. Only step 09 introduces new arithmetic.</p>
+
+<pre>basis_ttest = stats.ttest_ind(luna_ab_basis, ftx_ab_basis, equal_var=False)
+basis_utest = stats.mannwhitneyu(luna_ab_basis, ftx_ab_basis, alternative="two-sided")
+
+
+def cohens_d(x1, x2):
+    <span class="c">"""Calculate Cohen's d effect size."""</span>
+    n1, n2 = len(x1), len(x2)
+    var1, var2 = np.var(x1, ddof=1), np.var(x2, ddof=1)
+    pooled_std = np.sqrt(((n1 - 1) * var1 + (n2 - 1) * var2) / (n1 + n2 - 2))
+    return (np.mean(x1) - np.mean(x2)) / pooled_std
+
+
+basis_cohens_d = cohens_d(ftx_ab_basis, luna_ab_basis)
+did_estimate = ftx_avg_abnormal_basis - luna_avg_abnormal_basis</pre>
+
+<div class="box gist"><span class="k">In plain words</span>
+<p>Ask three questions: are the two averages different (t-test), are the two
+distributions different (Mann-Whitney), and how big is the gap relative to the spread
+(Cohen's d)?</p></div>
+
+<div class="box def"><span class="k">The formula</span>
+<p>Welch's t-statistic, which does not assume the two groups have the same spread:</p>
+<p>$$t \;=\; \frac{\bar x_1-\bar x_2}{\sqrt{\dfrac{s_1^{2}}{n_1}+\dfrac{s_2^{2}}{n_2}}}$$</p>
+<p>Cohen's d, the same gap measured in pooled standard deviations:</p>
+<p>$$d \;=\; \frac{\bar x_1-\bar x_2}{s_p},
+\qquad
+s_p \;=\; \sqrt{\frac{(n_1-1)s_1^{2}+(n_2-1)s_2^{2}}{n_1+n_2-2}}$$</p>
+<p>The difference-in-differences estimator, which here is simply the gap between the
+two average abnormal bases:</p>
+<p>$$\delta_{\text{DiD}} \;=\; \bar a^{\,\text{FTX}} - \bar a^{\,\text{LUNA}}$$</p>
+<p class="fnote">$\bar x_i$ is group $i$'s mean, $s_i^{2}$ its sample variance,
+$n_i$ its size. $s_p$ is the pooled standard deviation. $\bar a^{\,\text{FTX}}$ and
+$\bar a^{\,\text{LUNA}}$ are the average abnormal basis over each crisis window.
+Group 1 is FTX and group 2 is LUNA in the <code>cohens_d</code> call, which is why $d$
+comes out negative.</p></div>
+
+<div class="box data"><span class="k">Sample data</span>
+<div class="io">
+<div><span class="lab">in &mdash; the two crisis samples</span>
+<pre>luna_ab_basis: n = 15841, mean =   -0.53%, sd =  8.47%
+ftx_ab_basis:  n = 18518, mean = -257.22%, sd = 62.91%</pre></div>
+<div><span class="lab">out &mdash; step 09 results</span>
+<pre>Welch t:      549.484,  p = 0.00e+00
+Mann-Whitney: 293343638.0, p = 0.00e+00
+Cohen's d:     -5.516  (large effect)
+DiD:         -256.70%</pre>
+<p class="fnote">95% intervals from step 11: LUNA [&minus;0.66%, &minus;0.39%],
+FTX [&minus;258.13%, &minus;256.32%].</p></div>
+</div>
+</div>
+
+<div class="box flag"><span class="k">The weakness, stated honestly</span>
+<p>Both tests assume the observations are independent draws. These are consecutive
+one-minute bars of a highly persistent series, and the FTX leg is a forward-filled step
+function on top of that. The effective sample size is a tiny fraction of 18,518, so the
+p-values are meaningless and a t-statistic of 549 is a symptom, not a result. Cohen's d
+of &minus;5.5 is likewise driven by the level artefact, not by a behavioural
+difference.</p></div>
+
+<div class="box warn"><span class="k">Trap</span>
+<p><code>get_effect_size_category</code> and the inline
+<code>effect_interpretation</code> expression in step 11 encode the same thresholds
+twice, with different rules: step 09 has a "negligible" band below 0.2, step 11 does
+not. Both are printed in the same run.</p></div>
+
+<div class="box data"><span class="k">Sample data</span>
+<div class="io stack">
+<div><span class="lab">out &mdash; step 12's final summary table</span>
+<pre>                   Metric Terra/LUNA      FTX Ratio (FTX/LUNA)
+             Normal Basis      2.71% -524.62%         -193.89x
+Crisis Avg Abnormal Basis     -0.53% -257.22%          488.18x
+  Crisis Volatility (Std)      8.47%   62.91%            7.43x
+        Half-Life (hours)        5.8      inf             infx
+         Half-Life (days)        0.2      inf             infx</pre></div>
+</div>
+<p>Four CSV tables reach <code>outputs/tables/</code> in steps 01 to 13:
+<code>tab_appendix_event_timeline</code>, <code>tab1_descriptive_statistics</code>,
+<code>tab2_statistical_tests</code>, <code>tab4_feature_importance</code>. Steps 15 to
+19 add three more, and step 19 overwrites <code>tab1</code>, <code>tab2</code> and
+<code>tab4</code> with differently built versions under near-identical names.</p></div>
+
+<h2 id="sec8"><span class="sec-no">08</span>The crisis classifier &mdash; step 13</h2>
+
+<pre>def extract_crisis_features(crisis_data, basis_col, slope_col, n_bars=6):
+    <span class="c">"""Extract early-warning features from the first ``n_bars`` 1-minute observations.</span>
+<span class="c"></span>
+<span class="c">    Note: ``n_bars=6`` is six minutes on 1-min data (notebook name ``n_hours`` was misleading).</span>
+<span class="c">    """</span>
+    early_data = crisis_data.iloc[:n_bars].copy()
+    ...
+    features = {
+        "mean_basis_dislocation": basis_series.mean() if len(basis_series) &gt; 0 else 0,
+        "vol_of_basis": basis_series.std() if len(basis_series) &gt; 1 else 0,
+        "autocorr_basis": basis_series.autocorr(lag=1) if len(basis_series) &gt; 2 else 0,
+        "mean_term_structure_slope": slope_series.mean()
+        if len(slope_series) &gt; 0
+        else 0,
+    }</pre>
+
+<div class="box gist"><span class="k">In plain words</span>
+<p>Take the first six minutes of each crisis, boil them down to four numbers, then
+build a fake training set by adding random noise around those numbers and train a
+random forest to tell the two crises apart.</p></div>
+
+<div class="box def"><span class="k">What it does</span>
+<p><b>Input:</b> the crisis-window slice of <code>data</code>. <b>Output:</b> four
+features per crisis, then 100 noisy copies of each, then a fitted
+<code>RandomForestClassifier</code> and a feature-importance table.
+<b>Role:</b> the project's "early warning" claim.</p></div>
+
+<div class="box def"><span class="k">The formula</span>
+<p>Each synthetic sample is the real feature plus Gaussian noise scaled to the feature's
+own size:</p>
+<p>$$x^{(i)}_j \;=\; x_j \;+\; \varepsilon^{(i)}_j,
+\qquad
+\varepsilon^{(i)}_j \sim \mathcal{N}\!\left(0,\;\bigl(\sigma\,|x_j| + \epsilon_0\bigr)^{2}\right)$$</p>
+<p class="fnote">$x_j$ is the real value of feature $j$ measured from the crisis;
+$x^{(i)}_j$ is the value given to synthetic sample $i$; $\sigma$ is
+<code>noise_scale</code>, fixed at 0.3; $\epsilon_0 = 0.01$ is a floor so that a feature
+of exactly zero still gets some noise; $\mathcal{N}(0, s^2)$ is a normal distribution
+with mean zero and standard deviation $s$.</p></div>
+
+<div class="box data"><span class="k">Sample data</span>
+<div class="io">
+<div><span class="lab">in &mdash; first six minutes of each crisis</span>
+<pre>feature                    LUNA        FTX
+mean_basis_dislocation   1.4568  -161.8260
+vol_of_basis             0.7832     5.2057
+autocorr_basis           0.3439    -0.0601
+mean_term_structure_slope 0.0000     0.0000</pre></div>
+<div><span class="lab">out &mdash; classifier results</span>
+<pre>Cross-validation accuracy: 1.000 (+/- 0.000)
+Test set accuracy:         1.000
+
+importance
+  vol_of_basis            0.4208
+  mean_basis_dislocation  0.4114
+  autocorr_basis          0.1677
+  mean_term_structure_slope 0.0000</pre></div>
+</div>
+<p>The 200 training rows are noisy copies of just two points. Those two points differ by
+a factor of about 110 on the first feature, so any classifier separates them perfectly.
+The reported accuracy of 1.000 measures the noise generator, not the market.</p></div>
+
+<div class="box flag"><span class="k">The weakness, stated honestly</span>
+<p>This is circular by construction: the labels were used to build the data, and then
+the data is used to recover the labels. There are two real events in the sample, so no
+out-of-sample statement is possible. The narrative in the source ("autocorrelation is
+the number-one predictor") does not even hold on this run &mdash;
+<code>vol_of_basis</code> came first, and the code prints the fallback branch.</p></div>
+
+<div class="box warn"><span class="k">Trap</span>
+<p><code>mean_term_structure_slope</code> has importance exactly 0.0000 because the
+slope column is entirely missing (see <a href="#sec5">section 05</a>) and the guard
+turns it into a constant 0. A constant feature is silently useless rather than loudly
+absent.</p></div>
+
+<h2 id="sec9"><span class="sec-no">09</span>The five RiskLabAI enhancements &mdash; steps 14 to 19</h2>
+
+<div class="box flag"><span class="k">Not executed &mdash; stated plainly</span>
+<p><b>Steps 14 to 19 could not be run while writing this page.</b> They depend on the
+<code>risklabai</code> package, which <code>pyproject.toml</code> pins to a specific
+GitHub commit (<code>751737a7...</code>). That commit no longer exists on the remote, so
+<code>uv sync</code> fails with <code>upload-pack: not our ref</code>. Steps 01 to 13
+were run for real and every number above comes from that run. Nothing below this line
+has a sample-data box, because there is no honest way to produce one.</p></div>
+
+<p>Step 14 does nothing but import. Its whole purpose is to put six RiskLabAI names and
+<code>statsmodels.api as sm</code> into the shared namespace for steps 15 to 19.</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Step</th><th>Idea</th><th>Input</th><th>Output</th><th>Why it is there</th></tr></thead>
+<tbody>
+<tr><td>15 &mdash; CUSUM filter</td><td>Sample when the price actually moves, not every minute</td><td><code>data["perp_close"]</code> with timezone stripped</td><td><code>cusum_events</code>, a set of timestamps</td><td>Shows crisis periods generate far more "real" events per hour than calm periods</td></tr>
+<tr><td>16 &mdash; Fractional differentiation</td><td>Make the basis statistically stationary while keeping as much memory as possible</td><td>Shifted basis series</td><td><code>luna_optimal_d</code>, <code>ftx_optimal_d</code></td><td>Regressions in step 18 need stationary inputs</td></tr>
+<tr><td>17 &mdash; Uniqueness weights</td><td>Overlapping observations should not each count as one independent fact</td><td>Event start and end timestamps</td><td>Per-observation weights, weighted means</td><td>A partial answer to the independence problem in step 09</td></tr>
+<tr><td>18 &mdash; Backdoor adjustment</td><td>Control for the market regime before blaming the crisis type</td><td>Fractionally differenced basis plus two controls</td><td>An ordinary least squares fit, <code>tab3</code></td><td>Tests whether the FTX effect survives controls</td></tr>
+<tr><td>19 &mdash; Synthetic robustness</td><td>Re-run the comparison on 100 simulated markets</td><td>Volatility and drift calibrated from the two crises</td><td>Distributions of the differences, five tables</td><td>Asks whether the finding is a fluke</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Step 15 &mdash; the CUSUM filter</h3>
+
+<div class="box def"><span class="k">The formula</span>
+<p>The symmetric cumulative-sum filter keeps two running totals and fires an event when
+either crosses a threshold, then resets both:</p>
+<p>$$S^{+}_t=\max\bigl(0,\;S^{+}_{t-1}+\Delta y_t\bigr),
+\qquad
+S^{-}_t=\min\bigl(0,\;S^{-}_{t-1}+\Delta y_t\bigr)$$</p>
+<p>An event is recorded at time $t$ when $S^{+}_t \ge h_t$ or $S^{-}_t \le -h_t$, and
+whichever total fired is set back to zero.</p>
+<p class="fnote">$\Delta y_t$ is the change in the price series from $t-1$ to $t$.
+$S^{+}$ accumulates upward moves, $S^{-}$ downward ones. $h_t$ is the threshold, which
+this code makes time-varying: <code>daily_volatility_with_log_returns(prices, span=100)</code>
+gives a rolling volatility as a fraction, and multiplying it by the price converts it
+into currency units.</p></div>
+
+<div class="box why"><span class="k">Why the timezone is stripped and put back</span>
+<p>Lines 6 to 12 of step 15 remove the UTC label before calling RiskLabAI and re-apply it
+afterwards, with the comment "RiskLabAI compatibility fix for Timezones". The library
+does not handle timezone-aware indexes, so the code works around it rather than
+patching the library. The re-localisation assumes the naive timestamps were UTC, which
+they were.</p></div>
+
+<h3>Step 16 &mdash; fractional differentiation</h3>
+
+<div class="box def"><span class="k">The formula</span>
+<p>Ordinary differencing subtracts yesterday from today and throws away the level.
+Fractional differencing applies a non-integer power of the backshift operator, which
+removes the trend more gently:</p>
+<p>$$\tilde y_t \;=\; \sum_{k=0}^{K} \omega_k \, y_{t-k},
+\qquad
+\omega_0 = 1,
+\qquad
+\omega_k \;=\; -\,\omega_{k-1}\,\frac{d-k+1}{k}$$</p>
+<p class="fnote">$y_t$ is the original series, $\tilde y_t$ the differenced one. $d$ is
+the differencing degree: $d=0$ leaves the series untouched, $d=1$ is ordinary
+first differencing. $\omega_k$ is the weight on the observation $k$ steps back, built
+by the recursion shown. $K$ is where the weights are cut off once they become
+negligible. The code searches over $d$ and keeps the smallest one that passes the
+augmented Dickey-Fuller stationarity test at the five per cent level, which is the
+value that keeps the most memory.</p></div>
+
+<div class="box why"><span class="k">Why the series is shifted before differencing</span>
+<p>The RiskLabAI routine takes logarithms internally, and logarithms need positive
+inputs. The basis goes deeply negative, so lines 19 and 20 add
+<code>abs(global_min) + 100</code> to every value first. The comment says the buffer is
+100 per cent.</p></div>
+
+<div class="box warn"><span class="k">Trap</span>
+<p>Step 18 reuses <code>shift_val</code> &mdash; a number calibrated on the
+<em>raw</em> basis &mdash; on the <em>abnormal</em> basis. The two series have different
+minima, so the shift is not guaranteed to make the abnormal series positive, and the
+comment in step 18 says only "use the SAME shift_val".</p></div>
+
+<h3>Step 17 &mdash; sample uniqueness weights</h3>
+
+<div class="box def"><span class="k">The formula</span>
+<p>Two observations that both span the same stretch of time carry overlapping
+information. Concurrency counts how many observations are live at each instant, and an
+observation's weight is the average of the reciprocal concurrency over its own life:</p>
+<p>$$c_t \;=\; \sum_{i=1}^{N} \mathbf{1}_{\{t \in [t_{i,0},\, t_{i,1}]\}},
+\qquad
+u_i \;=\; \frac{1}{|I_i|}\sum_{t \in I_i} \frac{1}{c_t}$$</p>
+<p class="fnote">$N$ is the number of events. $[t_{i,0}, t_{i,1}]$ is the interval event
+$i$ spans, from its observation minute to the contract's expiry. $\mathbf{1}_{\{\cdot\}}$
+is 1 when the condition holds and 0 otherwise, so $c_t$ is simply how many events are
+live at time $t$. $I_i$ is the set of time steps inside event $i$ and $|I_i|$ its size.
+$u_i$ lands between 0 and 1: close to 1 when the event is alone, close to 0 when it
+overlaps heavily. The weights are then rescaled so they sum to $N$.</p></div>
+
+<div class="box why"><span class="k">Why the event count is capped</span>
+<p><code>create_indicator_matrix</code> builds a table with one row per minute and one
+column per event. At 1,000 events over roughly 70,000 minutes that is already about
+70 megabytes of unsigned bytes. Without the
+<code>max_uniqueness_events = 1000</code> cap and the even sampling in
+<code>reduce_event_count</code>, the full 70,000 events would need a matrix around
+seventy times larger.</p></div>
+
+<div class="box flag"><span class="k">The weakness, stated honestly</span>
+<p>The weights are computed but never fed back into the tests in step 09. Step 17 prints
+a weighted mean beside the unweighted one and stops there. The headline p-values on the
+page are still the unweighted ones.</p></div>
+
+<h3>Step 18 &mdash; the backdoor regression</h3>
+
+<div class="box def"><span class="k">The formula</span>
+<p>$$\tilde a_t \;=\; \beta_0 \;+\; \beta_1 \, D_t \;+\; \beta_2 \, \sigma_t \;+\; \beta_3 \ln P_t \;+\; u_t$$</p>
+<p class="fnote">$\tilde a_t$ is the fractionally differenced abnormal basis. $D_t$ is
+the crisis indicator: 0 for a LUNA-window minute, 1 for an FTX-window minute. $\sigma_t$
+is the rolling 24-bar standard deviation of returns multiplied by $\sqrt{24}$.
+$\ln P_t$ is the natural logarithm of the Bitcoin price. $u_t$ is the residual.
+$\beta_1$ is the quantity the step reports: the FTX effect after holding volatility and
+price level fixed. The name "backdoor adjustment" comes from causal inference and means
+blocking the paths through the confounders &mdash; here, the market regime.</p></div>
+
+<div class="box warn"><span class="k">Trap</span>
+<p>The volatility control multiplies by $\sqrt{24}$, which annualises correctly only for
+hourly data. The panel is one-minute data, so the scaling factor is wrong. Because the
+same wrong factor is applied to both crises, the regression coefficient $\beta_2$
+absorbs it and $\beta_1$ is unaffected &mdash; but the printed value of $\beta_2$ is not
+in the units its name implies.</p></div>
+
+<h3>Step 19 &mdash; synthetic robustness</h3>
+
+<div class="box def"><span class="k">The formula</span>
+<p>The simulated market is a Heston stochastic-volatility model with Merton jumps, run
+under two regimes that switch according to a Markov chain:</p>
+<p>$$dS_t = \mu S_t\,dt + \sqrt{v_t}\,S_t\,dW^{S}_t + S_t\,dJ_t$$</p>
+<p>$$dv_t = \kappa\,(\theta - v_t)\,dt + \xi\sqrt{v_t}\,dW^{v}_t,
+\qquad \mathrm{corr}\bigl(dW^{S}_t, dW^{v}_t\bigr) = \rho$$</p>
+<p class="fnote">$S_t$ is the simulated price and $v_t$ its instantaneous variance.
+$\mu$ is the drift, calibrated from each crisis's own mean return. $\kappa$ is how fast
+variance pulls back to its long-run level $\theta$, which is set to the crisis's squared
+annualised volatility. $\xi$ is the volatility of variance and $\rho$ the correlation
+between the two random drivers, set to $-0.7$ and $-0.8$ so that prices falling and
+volatility rising go together. $dJ_t$ is a jump term firing at rate $\lambda$ with mean
+size $m$ and variance $v$. The transition matrix is
+$\begin{pmatrix}0.95 &amp; 0.05\\ 0.05 &amp; 0.95\end{pmatrix}$, so each step has a five per
+cent chance of switching regime.</p></div>
+
+<div class="box why"><span class="k">Why there is a fallback</span>
+<p>The whole generation call sits inside <code>try</code>. If RiskLabAI raises anything,
+the code prints the error and falls back to bootstrap resampling of the real crisis
+returns. That keeps the run alive, and the failure is printed rather than hidden &mdash;
+but the printed conclusion at the end does not say which path produced the numbers.</p></div>
+
+<div class="box warn"><span class="k">Trap</span>
+<p>The fallback calls <code>np.random.random()</code> with no seed of its own. It
+inherits whatever seed state step 13 left behind, so the fallback path is reproducible
+only by accident.</p></div>
+
+<h2 id="sec10"><span class="sec-no">10</span>What the numbers actually mean</h2>
+
+<div class="box flag"><span class="k">The central problem, stated first</span>
+<p>The FTX side of the comparison does not measure a futures basis. The formula
+$(F-S)/S$ requires $F$ and $S$ to be prices of the <em>same</em> underlying quantity.
+On the FTX leg, $F$ is the share price of the BITO exchange-traded fund (about \$2.66)
+and $S$ is the price of one Bitcoin (about \$17,663). One BITO share is not one
+Bitcoin; it is a small claim on a futures-rolling strategy. So $(F-S)/S$ is
+approximately $-1$ at every single minute, and the "annualised basis" reduces to
+$-100 \times 365/T$, a smooth function of days to expiry.</p></div>
+
+<div class="box data"><span class="k">Sample data</span>
+<div class="io stack">
+<div><span class="lab">out &mdash; three consecutive minutes of ftx_front_basis</span>
+<pre>2022-11-09 15:00:00+00:00   -729.890063
+2022-11-09 15:01:00+00:00   -729.890115
+2022-11-09 15:02:00+00:00   -729.890108
+
+variation across three minutes: about 0.00005 percentage points
+Bitcoin moved  $17662.90 -> $17646.70 -> $17702.70  over the same minutes</pre></div>
+</div>
+<p>Bitcoin moved 0.3 per cent across those three minutes and the "basis" moved five
+hundred-thousandths of a percentage point. The series is tracking the calendar.</p></div>
+
+<p>Everything that follows from that column inherits the problem:</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Reported result</th><th>Value from the real run</th><th>What it actually reflects</th></tr></thead>
+<tbody>
+<tr><td>FTX normal basis</td><td>&minus;524.62%</td><td>Average of $-100 \times 365/T$ over October and early November</td></tr>
+<tr><td>FTX average abnormal basis</td><td>&minus;257.22%</td><td>How much $365/T$ grew between the estimation and crisis windows</td></tr>
+<tr><td>Welch t-statistic</td><td>549.484</td><td>A level difference between two incomparable quantities, on 18,518 non-independent bars</td></tr>
+<tr><td>Cohen's d</td><td>&minus;5.516</td><td>The same level difference divided by a small spread</td></tr>
+<tr><td>Difference-in-differences</td><td>&minus;256.70%</td><td>The same number again, relabelled</td></tr>
+<tr><td>Classifier accuracy</td><td>1.000</td><td>Two synthetic clusters 110 times apart, generated from their own labels</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box why"><span class="k">What would make the comparison sound</span>
+<p>Three changes, in order of importance. First, compare like with like: use the Binance
+December 2022 quarterly Bitcoin contract against Bitcoin spot for the FTX window, the
+same way the LUNA window uses the June contract &mdash; or, if BITO must be used,
+convert it to a Bitcoin-equivalent exposure per share first. Second, drop the days
+after contract expiry rather than clamping $T$ at 1, which alone removes 10,080 rows
+whose standard deviation is eighteen times the rest of the sample. Third, stop treating
+consecutive minutes as independent: use the uniqueness weights that step 17 already
+computes, or aggregate to a coarser bar and use standard errors robust to
+autocorrelation.</p></div>
+
+<div class="box def"><span class="k">What survives</span>
+<p>The LUNA leg is built correctly: Bitcoin spot against a Binance Bitcoin quarterly
+future, both in US dollars, on the same clock. Its numbers before the June expiry are
+meaningful &mdash; a mean basis of about 2.7 per cent annualised, dropping to
+&minus;64 per cent at the worst minute of the May crisis. The event-study machinery
+around it (estimation window, abnormal series, half-life) is also correctly wired. What
+fails is the comparison, not the framework.</p></div>
+
+<h2 id="sec11"><span class="sec-no">11</span>Settings and what changing them does</h2>
+
+<p>There is no <code>config.toml</code> in this project. Every tunable value is written
+into the step file that uses it, so changing a setting means editing source.</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Setting</th><th>Where it lives</th><th>Value</th><th>What changing it does</th></tr></thead>
+<tbody>
+<tr><td>Estimation, crisis and post-crisis dates</td><td>step 04</td><td>six timestamps per event</td><td>Moves the benchmark period and the tested period. Widening the estimation window past 1 April (LUNA) or 1 October (FTX) has no effect, because the data does not go back that far.</td></tr>
+<tr><td><code>maturity_dates</code></td><td>step 05</td><td>four quarterly expiries</td><td>Changes $T$ in the basis formula, so it rescales every basis value.</td></tr>
+<tr><td>Data date filters</td><td><code>scripts/convert_raw_to_parquet.py</code></td><td><code>BTC_START</code>, <code>BITO_START</code>, ...</td><td>Only takes effect if you have the raw files and rebuild. This is what truncates the estimation windows.</td></tr>
+<tr><td><code>BARS_PER_HOUR</code></td><td>step 08</td><td>60</td><td>Converts the half-life from bars to hours. Would need to be 1 if the panel were ever rebuilt on hourly bars.</td></tr>
+<tr><td><code>n_bars</code></td><td>step 13</td><td>6</td><td>How many minutes of each crisis feed the classifier features.</td></tr>
+<tr><td><code>noise_scale</code>, <code>n_synthetic</code></td><td>step 13</td><td>0.3, 100</td><td>How spread out and how numerous the fake training rows are. Larger noise makes the trivial classification less trivial.</td></tr>
+<tr><td><code>max_uniqueness_events</code></td><td>step 17, read from <code>OVERRIDES</code></td><td>1000</td><td>The only value that can be set without editing source. Caps the indicator matrix; raising it grows memory use roughly linearly.</td></tr>
+<tr><td><code>span</code> for the CUSUM threshold</td><td>step 15</td><td>100</td><td>How much history the rolling volatility uses. A shorter span reacts faster and fires more events.</td></tr>
+<tr><td><code>p_value_threshold</code></td><td>step 16</td><td>0.05</td><td>How strict the stationarity test is. Stricter means a larger $d$ and less memory retained.</td></tr>
+<tr><td><code>n_simulations</code>, <code>n_steps</code></td><td>step 19</td><td>100, 500</td><td>Size of the Monte Carlo study. Both drive the runtime of the longest step.</td></tr>
+<tr><td><code>PLOT_QUALITY</code>, <code>PLOT_THEME</code></td><td>step 01</td><td>300, "light"</td><td>Chart resolution in dots per inch, and the RiskLabAI colour theme.</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="box flag"><span class="k">The weakness, stated honestly</span>
+<p>The <code>OVERRIDES</code> mechanism exists and works, but only one setting uses it.
+Everything else in the table above requires editing a step file, which means a
+sensitivity check cannot be run without changing tracked source. This is the single
+change that would most improve the project's usability.</p></div>
+
+<h2 id="fixes"><span class="sec-no">12</span>Fixes applied</h2>
+
+<p>Four defects were found and corrected while writing this page. Everything else on
+this page is described, not changed.</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>File</th><th>Defect</th><th>Fix</th><th>Effect</th></tr></thead>
+<tbody>
+<tr>
+<td><code>steps/01_import_libraries_and_setup.py</code></td>
+<td><span class="chip c-bug">crash</span> <code>import numpy as np</code> and <code>from scipy import stats</code> had been removed. They look unused inside file 01, but files 05 to 19 rely on them through the shared namespace.</td>
+<td>Restored both imports.</td>
+<td>The pipeline failed with <code>NameError: name 'np' is not defined</code> at step 06. It now runs.</td>
+</tr>
+<tr>
+<td><code>steps/14_marcos_s_enhancement_implementation.py</code></td>
+<td><span class="chip c-bug">crash</span> All six RiskLabAI imports and <code>statsmodels.api as sm</code> had been removed, leaving only a comment. The file's entire purpose is to publish those names to the shared namespace for steps 15 to 19.</td>
+<td>Restored the imports and corrected the comment, which claimed RiskLabAI was imported in step 01. Step 01 only imports the plotting theme.</td>
+<td>Steps 15, 16, 17 and 18 would have failed on the first RiskLabAI name they touched.</td>
+</tr>
+<tr>
+<td><code>steps/08_crisis_impact_metrics.py</code></td>
+<td><span class="chip c-drop">wrong units</span> <code>calculate_half_life</code> fitted a one-lag autoregression on one-minute bars, so its result was a count of minutes, but steps 08, 10 and 12 printed it as hours and divided by 24 to get days.</td>
+<td>Added a named constant <code>BARS_PER_HOUR = 60</code> and an optional parameter, and divided the bar count by it before returning.</td>
+<td>The LUNA half-life was printed as "347.9h (14.5d)" for a post-crisis window only 40 days long. It now reads 5.8h (0.2d). Ratios between the two crises are unchanged, because they are unit-free.</td>
+</tr>
+<tr>
+<td><code>steps/03_load_data.py</code></td>
+<td><span class="chip c-drop">misleading failure</span> A missing BITO file printed <code>ERROR: ...</code> and carried on with <code>ftx_futures_proxy = None</code>. Step 06 then failed three files later with <code>TypeError: 'NoneType' object is not subscriptable</code>.</td>
+<td>Raise <code>FileNotFoundError</code> with the path and the rebuild command.</td>
+<td>The run stops where the problem is, with a message that says what to do.</td>
+</tr>
+<tr>
+<td><code>scripts/convert_raw_to_parquet.py</code></td>
+<td><span class="chip c-veto">data loss</span> <code>main()</code> deleted every file in <code>data/processed/</code> before reading anything. If even one raw source was missing, the committed parquet inputs were gone and the project had no data.</td>
+<td>Added <code>REQUIRED_RAW_FILENAMES</code> and a check that every source exists before the deletion loop.</td>
+<td>Running the rebuild without the raw files now fails safely instead of destroying the working data.</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="box why"><span class="k">Why the import deletions matter beyond this repository</span>
+<p>They are the predictable cost of the shared-namespace design. Any linter, formatter or
+editor that reasons about one file at a time will call those imports unused, because
+within that file they are. The project has no test that would catch it. If the design
+stays, the step files need a comment at each import saying which later file consumes it
+&mdash; or the imports need to move into <code>build_execution_context</code>, where
+their purpose is obvious.</p></div>
+
+<h2 id="callgraph"><span class="sec-no">13</span>Call graph</h2>
+
+<pre>ftx_crash.cli.main
+└── ftx_crash.pipeline.run_pipeline
+    ├── ftx_crash.config.ProjectConfig            <span class="c"># paths from __file__</span>
+    ├── ftx_crash.config.build_execution_context  <span class="c"># mkdir + seed namespace</span>
+    └── exec(step file)  x19, one shared namespace
+        ├── 01  save_table / save_paper_table / save_paper_fig   <span class="c"># defined here</span>
+        │       pub_plots.setup_publication_style
+        ├── 02  pd.read_parquet -&gt; plt.savefig("fig1_btc_price_trajectory")
+        ├── 03  pd.read_parquet x2 -&gt; luna_spot_intraday, ftx_spot_intraday,
+        │                             ftx_futures_proxy
+        ├── 04  timestamps -&gt; save_paper_table("tab_appendix_event_timeline")
+        ├── 05  calculate_basis                                  <span class="c"># defined here</span>
+        ├── 06  calculate_basis  x3 -&gt; data
+        │       save_table("tab1_descriptive_statistics")
+        │       save_paper_fig("fig1b_raw_basis_history")
+        ├── 07  data -&gt; luna_abnormal_basis, ftx_abnormal_basis
+        ├── 08  calculate_half_life  x2                          <span class="c"># defined here</span>
+        ├── 09  stats.ttest_ind, stats.mannwhitneyu, cohens_d,
+        │       get_effect_size_category, significance_stars
+        │       save_table("tab2_statistical_tests")
+        ├── 10  plt.savefig("fig2_crisis_comparison_panels")
+        ├── 11  calculate_ci  x2 -&gt; save_paper_fig("fig_statistical_significance")
+        ├── 12  summary_df -&gt; printed only
+        ├── 13  extract_crisis_features, generate_synthetic_events,
+        │       RandomForestClassifier -&gt; save_table("tab4_feature_importance")
+        │                                 plt.savefig("fig3_feature_importance")
+        ├── 14  imports only  -&gt; diff, synth, sm, and four labelling functions
+        ├── 15  daily_volatility_with_log_returns
+        │       cusum_filter_events_dynamic_threshold
+        ├── 16  diff.find_optimal_ffd_simple  x2 -&gt; luna_optimal_d, ftx_optimal_d
+        │       save_paper_fig("fig_appendix_ffd_tradeoff")
+        ├── 17  expand_label_for_meta_labeling, create_indicator_matrix,
+        │       calculate_average_uniqueness, weighted_mean, weighted_std
+        │       save_paper_table("tab_appendix_stationarity_diagnostics")
+        ├── 18  fractional_difference_fixed, prepare_robust_causal_dataset,
+        │       sm.OLS -&gt; save_table("tab3_causal_regression_results")
+        └── 19  synth.parallel_generate_prices, analyze_synthetic_path, acf
+                save_paper_table  x4 -&gt; tab1, tab2, tab4, tab5   <span class="c"># overwrites</span></pre>
+
+<p class="fnote">Indentation is containment, not timing: everything under
+<code>exec</code> runs in file-name order, and each file can see every name created
+above it.</p>
+
+<h2 id="edge"><span class="sec-no">14</span>Edge cases</h2>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Situation</th><th>What would go wrong</th><th>What handles it</th></tr></thead>
+<tbody>
+<tr><td>Days to expiry reaches zero or goes negative</td><td>Division by zero, then sign flips after expiry</td><td><span class="pass">Handled, partly.</span> <code>np.maximum(days, 1)</code> stops the crash, but the 10,080 post-expiry rows still carry a 365x multiplier and a standard deviation of 746%.</td></tr>
+<tr><td>September futures file starts after the LUNA crisis</td><td>Term-structure slope undefined</td><td><span class="failw">Not handled.</span> <code>reindex(method="ffill")</code> silently produces all-missing values. Nothing warns; the feature just reports 0.</td></tr>
+<tr><td>Estimation window starts before the data does</td><td>Benchmark computed on a shorter period than declared</td><td><span class="failw">Not handled.</span> <code>.loc</code> slicing silently returns what exists. The exported timeline table still prints the declared dates.</td></tr>
+<tr><td>Fewer than 10 observations in the half-life input</td><td>Meaningless regression</td><td><span class="pass">Handled.</span> Returns <code>np.nan</code>.</td></tr>
+<tr><td>Autoregression coefficient outside (0, 1)</td><td>Logarithm of a non-positive number, or a negative half-life</td><td><span class="pass">Handled.</span> Returns <code>np.inf</code>, though it merges two different failures into one value.</td></tr>
+<tr><td>Missing BITO parquet file</td><td>Confusing failure three steps later</td><td><span class="pass">Handled after the fix.</span> Step 03 now raises with the path and the rebuild command.</td></tr>
+<tr><td>Raw files absent when rebuilding data</td><td>Committed parquet inputs deleted, project left with nothing</td><td><span class="pass">Handled after the fix.</span> Sources are checked before anything is deleted.</td></tr>
+<tr><td>Clocks going back on 6 November 2022</td><td><code>AmbiguousTimeError</code> during <code>tz_localize("US/Eastern")</code></td><td><span class="failw">Not handled.</span> Works only because the bundled file has no bars in the repeated hour.</td></tr>
+<tr><td>Autocorrelation of a constant series in step 13</td><td><code>NaN</code> feature</td><td><span class="pass">Handled.</span> Explicit <code>pd.isna</code> check turns it into 0.</td></tr>
+<tr><td>RiskLabAI synthetic generator fails in step 19</td><td>Study stops</td><td><span class="pass">Handled.</span> Falls back to bootstrap resampling and prints the error, though the conclusion does not say which path ran.</td></tr>
+<tr><td>Zero events in a CUSUM estimation window</td><td>Division by zero when computing the density ratio</td><td><span class="pass">Handled.</span> <code>try / except ZeroDivisionError</code> prints a message.</td></tr>
+<tr><td><code>risklabai</code> cannot be installed</td><td>Nothing runs at all</td><td><span class="failw">Not handled.</span> The pinned commit no longer exists on GitHub; <code>uv sync</code> fails outright, so even steps 01 to 13 cannot be run through the normal entry point.</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="idiom"><span class="sec-no">15</span>Idiom index</h2>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Idiom</th><th>What it does</th><th>The trap</th></tr></thead>
+<tbody>
+<tr><td><code>exec(compile(src, path, "exec"), context)</code></td><td>Runs a file's source with a supplied dictionary as its globals</td><td>Every name a file creates leaks into every later file. There is no isolation and no import graph a tool can read.</td></tr>
+<tr><td><code>Path(__file__).resolve().parents[2]</code></td><td>Walks two directories up from the current file to find the project root</td><td>Breaks silently if the file is ever moved to a different depth.</td></tr>
+<tr><td><code>series.reindex(new_index, method="ffill")</code></td><td>Puts an hourly series onto a minute grid by repeating the last value</td><td>Creates artificial persistence. Values before the first observation stay missing.</td></tr>
+<tr><td><code>(timestamp - DatetimeIndex).days</code></td><td>Whole calendar days between an expiry and every row</td><td>Truncates towards zero and goes negative after expiry, which is why the <code>np.maximum</code> clamp exists.</td></tr>
+<tr><td><code>df.loc[start:end]</code> with timestamps</td><td>Slices a range inclusive of both ends</td><td>Returns whatever exists without complaining that the requested range was wider.</td></tr>
+<tr><td><code>pd.concat([luna_df, ftx_df])</code></td><td>Stacks two disjoint date ranges into one frame</td><td>Only stays sliceable because the two ranges happen to be in ascending order. Reverse them and every <code>.loc</code> range slice raises.</td></tr>
+<tr><td><code>tz_localize(...).tz_convert("UTC")</code></td><td>Attaches a timezone to naive timestamps, then restates them in UTC</td><td>Attaching the wrong timezone silently shifts every observation.</td></tr>
+<tr><td><code>np.var(x, ddof=1)</code></td><td>Sample variance, dividing by $n-1$</td><td>The default is <code>ddof=0</code>, the population version. Cohen's d needs the sample version.</td></tr>
+<tr><td><code>warnings.filterwarnings("ignore")</code></td><td>Silences every warning for the whole run</td><td>Hides the pandas and statsmodels warnings that would flag exactly the alignment and stationarity problems this project has.</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="ask"><span class="sec-no">16</span>If they point at a line</h2>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Question</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td>"Why <code>exec</code> instead of imports?"</td><td>To keep notebook semantics. The nineteen files share one namespace exactly as nineteen notebook cells would, which lets a reader compare each file against the original notebook in <code>docs/reference/ftx-crash.ipynb</code>.</td></tr>
+<tr><td>"Where is look-ahead bias prevented?"</td><td>Step 07. The benchmark average comes from <code>luna_est_data</code>, which ends the day before the crisis window opens, so no crisis observation influences the number it is compared against.</td></tr>
+<tr><td>"Is there look-ahead bias anywhere?"</td><td>Yes, in step 18. The differencing degree $d$ is chosen in step 16 using the estimation, crisis and post-crisis periods together, then applied to the crisis window. The transformation is fitted with knowledge of the period it is applied to.</td></tr>
+<tr><td>"Why is the half-life 5.8 hours and not 348?"</td><td>Because the fit is on one-minute bars, so it produced 348 <em>minutes</em>. Step 08 now divides by <code>BARS_PER_HOUR</code>. See <a href="#fixes">Fixes applied</a>.</td></tr>
+<tr><td>"Why is the FTX half-life infinite?"</td><td>The estimated one-lag coefficient fell outside the open interval from 0 to 1, so the function returns <code>np.inf</code> by design rather than reporting a negative or undefined half-life.</td></tr>
+<tr><td>"What happens if I change the crisis window in step 04?"</td><td>Everything downstream moves: the benchmark average, both abnormal series, all three tests, the classifier features and the causal regression. Nothing is cached, so a rerun is enough.</td></tr>
+<tr><td>"Why does the FTX basis barely move minute to minute?"</td><td>Because it is not measuring a basis. A \$2.66 exchange-traded fund share is being compared with a \$17,663 Bitcoin, so the ratio is pinned near &minus;1 and the series follows the days-to-expiry calendar. See <a href="#sec10">section 10</a>.</td></tr>
+<tr><td>"How long does a full run take?"</td><td>Steps 01 to 13 take a few minutes on the bundled data. Steps 15 and 17 are the slow ones: the CUSUM filter walks 260,428 rows in Python, and the uniqueness matrix is about 70 megabytes per crisis. Steps 14 to 19 could not be timed, because the dependency will not install.</td></tr>
+<tr><td>"Why is <code>--smoke</code> there if it does nothing?"</td><td>It is scaffolding. <code>SMOKE_OVERRIDES</code> is empty, so the flag has no effect today. Putting <code>{"max_uniqueness_events": 50}</code> into it would make it real.</td></tr>
+<tr><td>"Which tables are trustworthy?"</td><td><code>tab_appendix_event_timeline</code> overstates the estimation windows. <code>tab1</code>, <code>tab2</code> and <code>tab4</code> are each written twice under near-identical names, once in steps 06 to 13 and again in step 19. Only the LUNA columns rest on a correctly constructed basis.</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="verify"><span class="sec-no">17</span>Verification</h2>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Check</th><th>How it works</th><th>What it catches</th></tr></thead>
+<tbody>
+<tr><td>Run steps 01 to 13 end to end</td><td>Execute the real step files with only the RiskLabAI plotting theme replaced by a no-op</td><td>Missing names, broken slices, and every crash the import deletions caused. This is how the four fixes on this page were confirmed.</td></tr>
+<tr><td>Compare output before and after a change</td><td>Capture the printed output to a file and diff it</td><td>Unintended changes. The half-life fix produced exactly one intended difference and nothing else.</td></tr>
+<tr><td>Check one basis value by hand</td><td>$(30824.00-30191.82)/30191.82 \times 365/45 \times 100 = 16.9837$</td><td>Sign errors, a wrong annualisation factor, and a wrong days-to-expiry count.</td></tr>
+<tr><td>Count non-missing values per column</td><td><code>data["luna_slope"].count()</code></td><td>Silently empty features. This is what revealed the dead term-structure dimension.</td></tr>
+<tr><td>Print the first and last index of every <code>.loc</code> slice</td><td>Compare against the declared window</td><td>Windows truncated by the data, as in step 04.</td></tr>
+<tr><td>Group the basis by month</td><td><code>groupby(index.to_period("M")).agg(["min","max","std"])</code></td><td>The expiry blow-up: a June standard deviation eighteen times April's.</td></tr>
+<tr><td>Read three consecutive rows of a series</td><td>Look at whether it moves when the market moves</td><td>A series that is tracking the calendar rather than prices.</td></tr>
+<tr><td>Tests in <code>tests/</code></td><td>&mdash;</td><td><span class="failw">Nothing.</span> <code>tests/unit/</code> and <code>tests/fixtures/</code> contain only placeholder files. There are no tests.</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="limits"><span class="sec-no">18</span>Limitations, stated honestly</h2>
+
+<ul>
+<li><b>The FTX basis is not a basis.</b> Comparing a \$2.66 fund share with a \$17,663
+Bitcoin makes the series a function of days to expiry. Every FTX-versus-LUNA statistic
+in the project inherits this.</li>
+<li><b>The term-structure dimension is empty.</b> Both abnormal-slope series have zero
+values, because the September contract file starts six weeks after the LUNA crisis and
+the FTX side never had a second leg.</li>
+<li><b>Observations are treated as independent when they are not.</b> Consecutive
+one-minute bars of a persistent, forward-filled series produce p-values of exactly
+zero and a t-statistic of 549. Step 17 computes the weights that would help and never
+applies them.</li>
+<li><b>The classifier is circular.</b> Two real events, expanded to 200 rows by adding
+noise to their own labels, then classified perfectly. It measures the noise generator.</li>
+<li><b>The declared estimation windows are a month longer than the data.</b> The
+exported appendix table reports the declared dates, not the realised ones.</li>
+<li><b>Cumulative impact sums annualised rates over minutes.</b> The resulting
+&minus;4,763,269 per cent is not a quantity with a meaning.</li>
+<li><b>Steps 14 to 19 are unverified.</b> The pinned <code>risklabai</code> commit no
+longer exists on GitHub, so those six files could not be executed and their outputs are
+described from the source only.</li>
+<li><b>There are no tests.</b> The <code>tests/</code> tree holds placeholder files.</li>
+<li><b>There is no <code>config.toml</code>.</b> Every setting except
+<code>max_uniqueness_events</code> requires editing a step file.</li>
+</ul>
+
+<p class="foot">Companion material: <code>README.md</code> for how to run the project,
+<code>GUIDE_ROOT.md</code> and <code>GUIDE_src.md</code> for the folder layout, and
+<code>docs/reference/notebook_split.md</code> for the notebook-section to step-file map.
+The original notebook is preserved unchanged at
+<code>docs/reference/ftx-crash.ipynb</code>.</p>
+
+</div>
+</body>
+</html>
