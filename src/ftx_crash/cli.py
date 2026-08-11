@@ -13,9 +13,17 @@ SMOKE_OVERRIDES: dict[str, object] = {}
 
 def main() -> None:
     """Run the project pipeline from the command line."""
-    parser = argparse.ArgumentParser(description='Run the notebook-derived pipeline.')
-    parser.add_argument('--smoke', action='store_true', help='Run with smaller verification settings when supported.')
-    parser.add_argument('--print-keys', action='store_true', help='Print the final context keys after execution.')
+    parser = argparse.ArgumentParser(description="Run the notebook-derived pipeline.")
+    parser.add_argument(
+        "--smoke",
+        action="store_true",
+        help="Run with smaller verification settings when supported.",
+    )
+    parser.add_argument(
+        "--print-keys",
+        action="store_true",
+        help="Print the final context keys after execution.",
+    )
     args = parser.parse_args()
 
     overrides = dict(SMOKE_OVERRIDES) if args.smoke else {}
@@ -24,5 +32,5 @@ def main() -> None:
         pprint(sorted(context.keys()))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
