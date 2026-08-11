@@ -7,7 +7,7 @@ name = "ftx-crash"
 version = "0.1.0"
 description = "Preserves the event-study notebook as sequential scripts and packages the required crypto inputs as local parquet assets."
 readme = "README.md"
-requires-python = ">=3.13,<3.14"
+requires-python = ">=3.13"
 dependencies = [
     "numpy>=2.2",
     "pandas>=2.2",
