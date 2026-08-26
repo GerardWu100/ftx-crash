@@ -76,7 +76,3 @@ Running the pipeline writes:
   feature importance, statistical significance).
 - `outputs/tables/` - CSV tables (descriptive statistics, statistical test
   results, feature importance, event timeline).
-
-## License
-
-All rights reserved. See [LICENSE](LICENSE).
