@@ -1,6 +1,5 @@
 """Notebook section: crisis impact metrics."""
 
-
 # The panel built in step 06 is 1-minute data, so an AR(1) fitted on consecutive
 # rows gives a half-life counted in bars (minutes). Downstream steps print the
 # half-life in hours and divide by 24 for days, so convert here.
